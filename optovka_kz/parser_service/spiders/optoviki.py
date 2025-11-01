@@ -225,29 +225,50 @@ class OptovikiSpider(scrapy.Spider):
             )
             
             supplier_name = name or "unknown"
-            self.parse_products_from_supplier_page(response, supplier_name)
+            logger.info(f"[PRODUCTS] Starting to parse products for supplier: {supplier_name} from {response.url}")
             
-            all_goods_link = response.css('a[href*="/goods"]::attr(href)').get()
-            if all_goods_link:
-                import re
-                supplier_id_match = re.search(r'/(\d+)', company_url)
-                if supplier_id_match:
-                    supplier_id = supplier_id_match.group(1)
-                    goods_url = urljoin(response.url, f'/{supplier_id}/goods')
-                    logger.info(f"Found goods link for {supplier_name}: {goods_url}")
-                    yield SeleniumRequest(
-                        url=goods_url,
-                        callback=self.parse_products_list,
-                        meta={'supplier_name': supplier_name},
-                        wait_time=10,
-                        dont_filter=True
-                    )
+            for request in self.parse_products_from_supplier_page(response, supplier_name):
+                yield request
+            
+            import re
+            supplier_id_match = re.search(r'/(\d+)', company_url)
+            if supplier_id_match:
+                supplier_id = supplier_id_match.group(1)
+                goods_url = urljoin(response.url, f'/{supplier_id}/goods')
+                logger.info(f"[PRODUCTS] Found goods link for {supplier_name}: {goods_url}")
+                yield SeleniumRequest(
+                    url=goods_url,
+                    callback=self.parse_products_list,
+                    meta={'supplier_name': supplier_name},
+                    wait_time=10,
+                    dont_filter=True
+                )
+            else:
+                logger.warning(f"[PRODUCTS] Could not extract supplier ID from {company_url}")
             
         except Exception as e:
             logger.exception(f"Failed to save supplier detail {company_url}: {e}")
 
     def parse_products_from_supplier_page(self, response, supplier_name):
+        logger.info(f"[PRODUCTS] Parsing products from supplier page: {response.url} for supplier {supplier_name}")
+        
         products = response.css('ul.firm-goods-list li[itemscope][itemtype*="Product"]')
+        
+        if not products:
+            logger.warning(f"[PRODUCTS] No products found with selector 'ul.firm-goods-list li[itemscope][itemtype*=\"Product\"]' on {response.url}")
+            products = response.css('ul.firm-goods-list li')
+            if products:
+                logger.info(f"[PRODUCTS] Found {len(products)} items in ul.firm-goods-list, trying to parse them")
+        
+        logger.info(f"[PRODUCTS] Found {len(products)} products on supplier page for {supplier_name}")
+        
+        if not products:
+            products = response.css('li[itemscope][itemtype*="Product"]')
+            logger.info(f"[PRODUCTS] Trying alternative selector, found {len(products)} products")
+        
+        if not products:
+            logger.warning(f"[PRODUCTS] No products found on supplier page {response.url} for supplier {supplier_name}")
+            return
         
         for product in products:
             product_name = product.css('span[itemprop="name"]::text').get()
@@ -267,7 +288,7 @@ class OptovikiSpider(scrapy.Spider):
                 
                 if product_link:
                     product_url = urljoin(response.url, product_link)
-                    logger.info(f"Found product link: {product_name} -> {product_url}")
+                    logger.info(f"[PRODUCTS] Found product link: {product_name} -> {product_url}")
                     yield SeleniumRequest(
                         url=product_url,
                         callback=self.parse_product_detail,
@@ -282,56 +303,46 @@ class OptovikiSpider(scrapy.Spider):
                             supplier_name=supplier_name,
                             image_url=image_url
                         )
-                        logger.info(f"Parsed product from listing: {product_name}")
+                        logger.info(f"[PRODUCTS] Parsed product from listing: {product_name}")
                     except Exception as e:
-                        logger.error(f"Failed to parse product {product_name}: {e}")
+                        logger.error(f"[PRODUCTS] Failed to parse product {product_name}: {e}")
+            else:
+                logger.warning(f"[PRODUCTS] Could not extract product name from product element on {response.url}")
 
     def parse_products_list(self, response):
         supplier_name = response.meta.get('supplier_name', 'unknown')
-        logger.info(f"Parsing products list page: {response.url} for supplier {supplier_name}")
+        logger.info(f"[PRODUCTS] Parsing products list page: {response.url} for supplier {supplier_name}")
         
         product_links = response.css('a[href*="/goods/"]::attr(href)').getall()
-        
         goods_menu_links = response.css('#goods-menu a[href*="/goods/"]::attr(href)').getall()
         
         seen_links = set()
+        product_urls_found = 0
         
         for link in product_links + goods_menu_links:
-            if link and link not in seen_links and '/goods/' in link:
+            if link and link not in seen_links and '/goods/' in link and '/goods/group-' not in link:
                 seen_links.add(link)
                 product_url = urljoin(response.url, link)
-                logger.info(f"Found product URL: {product_url}")
-                yield SeleniumRequest(
-                    url=product_url,
-                    callback=self.parse_product_detail,
-                    meta={'supplier_name': supplier_name},
-                    wait_time=5,
-                    dont_filter=True
-                )
-        
-        products = response.css('li[itemscope][itemtype*="Product"], .c-c-main[itemscope][itemtype*="Product"]')
-        for product in products:
-            product_name = product.css('span[itemprop="name"]::text').get()
-            if product_name:
-                product_name = product_name.strip()
-                image_src = product.css('img[itemprop="image"]::attr(src)').get() or product.css('img::attr(src)').get()
-                image_url = urljoin(response.url, image_src) if image_src else None
-                
-                try:
-                    self.parser_service.parse_product_from_listing(
-                        name=product_name,
-                        supplier_name=supplier_name,
-                        image_url=image_url
+                if '/goods/' in product_url and '/goods/group-' not in product_url:
+                    product_urls_found += 1
+                    logger.info(f"[PRODUCTS] Found product URL ({product_urls_found}): {product_url}")
+                    yield SeleniumRequest(
+                        url=product_url,
+                        callback=self.parse_product_detail,
+                        meta={'supplier_name': supplier_name},
+                        wait_time=5,
+                        dont_filter=True
                     )
-                    logger.info(f"Parsed product from listing page: {product_name}")
-                except Exception as e:
-                    logger.error(f"Failed to parse product {product_name}: {e}")
+        
+        logger.info(f"[PRODUCTS] Found {product_urls_found} product URLs to parse")
 
     def parse_product_detail(self, response):
         supplier_name = response.meta.get('supplier_name', 'unknown')
+        logger.info(f"[PRODUCT] Starting to parse product detail from {response.url} for supplier {supplier_name}")
         
         product_name = (
             response.css('span[itemprop="name"]::text').get()
+            or response.css('.c-c-name span[itemprop="name"]::text').get()
             or response.css('.c-c-name span::text').get()
             or response.css('h3::text').get()
             or response.css('.product-name::text').get()
@@ -340,18 +351,15 @@ class OptovikiSpider(scrapy.Spider):
         if product_name:
             product_name = product_name.strip()
         else:
-            logger.warning(f"Could not find product name on {response.url}")
+            logger.warning(f"[PRODUCT] Could not find product name on {response.url}")
             return
         
-        image_src = (
-            response.css('img[itemprop="image"]::attr(src)').get()
-            or response.css('.f-g-foto img::attr(src)').get()
-            or response.css('img::attr(src)').get()
-        )
-        image_url = urljoin(response.url, image_src) if image_src else None
+        logger.info(f"[PRODUCT] Found product name: {product_name}")
         
         try:
             self.parser_service.parse_product(response, supplier_name)
-            logger.info(f"Successfully parsed product detail: {product_name} from {response.url}")
+            logger.info(f"[PRODUCT] Successfully parsed product detail: {product_name} from {response.url}")
         except Exception as e:
-            logger.error(f"Failed to parse product detail {response.url}: {e}")
+            logger.error(f"[PRODUCT] Failed to parse product detail {response.url}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
