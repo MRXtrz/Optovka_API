@@ -16,7 +16,6 @@ services:
     name: optovka-parser
     env: python
     region: oregon
-    plan: free
     rootDir: optovka_kz
     buildCommand: |
       apt-get update && 
