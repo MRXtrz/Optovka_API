@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pyjwt
+requests
+kafka-python
+pydantic
+python-dotenv
+docker

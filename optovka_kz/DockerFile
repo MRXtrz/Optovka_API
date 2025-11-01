@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Минимальные утилиты
+RUN apt-get update && apt-get install -y wget unzip curl ca-certificates build-essential chromium chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /optovka_kz
+
+COPY requirements.txt /optovka_kz/
+RUN pip install --no-cache-dir -r /optovka_kz/requirements.txt
+
+# Копируем весь проект (включая src, parser_service, scrapy.cfg и т.д.)
+COPY . /optovka_kz/
+
+# Добавляем путь в PYTHONPATH, чтобы пакеты import-ились как optovka_kz.*
+ENV PYTHONPATH=/optovka_kz:/optovka_kz/optovka_kz
+
+# Команда по умолчанию (можно переопределить в docker-compose)
+CMD ["scrapy", "crawl", "optoviki"]
