@@ -53,6 +53,8 @@ class Product(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     is_new = Column(Boolean, default=True)
     image_url = Column(String)
+    price = Column(String)
+    description = Column(Text)
     supplier = relationship("Supplier", back_populates="products")
 
 class User(Base):
