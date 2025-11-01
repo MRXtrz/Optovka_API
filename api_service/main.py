@@ -1,4 +1,4 @@
-rom fastapi import FastAPI
+from fastapi import FastAPI
 from src.routers import auth, categories, subcategories, supplier, products
 import os
 
