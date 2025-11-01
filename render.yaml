@@ -23,6 +23,7 @@ services:
       apt-get install -y chromium chromium-driver wget gnupg && 
       pip install -r requirements.txt
     startCommand: scrapy crawl optoviki
+    schedule: 0 2 * * *
     envVars:
       - key: DATABASE_URL
         value: ${postgresql://neondb_owner:npg_3Fbhdtps9oNJ@ep-delicate-lake-ady7nsxm-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
