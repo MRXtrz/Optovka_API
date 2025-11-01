@@ -28,13 +28,7 @@ class ParserDAO:
                 return existing
 
             stmt = insert(Supplier).values(
-                name=supplier.name,
-                description=supplier.description,
-                image_url=supplier.image_url,
-                category_id=supplier.category_id,
-                subcategory_id=supplier.subcategory_id,
-                contacts=supplier.contacts,
-                hash=supplier.hash
+
             )
             try:
                 db.execute(stmt)
@@ -52,7 +46,9 @@ class ParserDAO:
                 name=product.name,
                 supplier_id=product.supplier_id,
                 is_new=product.is_new,
-                image_url=product.image_url
+                image_url=product.image_url,
+                price=getattr(product, 'price', None),
+                description=getattr(product, 'description', None)
             )
             try:
                 db.execute(stmt)
