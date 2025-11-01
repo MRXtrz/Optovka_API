@@ -103,6 +103,7 @@ class ParserService:
         try:
             name = (
                 response.css('span[itemprop="name"]::text').get()
+                or response.css('.c-c-name span[itemprop="name"]::text').get()
                 or response.css('.c-c-name span::text').get()
                 or response.css('h3::text').get()
                 or response.css('.product-name::text').get()
@@ -120,11 +121,41 @@ class ParserService:
 
             image_src = (
                 response.css('img[itemprop="image"]::attr(src)').get()
+                or response.css('.f-g-foto-block img::attr(src)').get()
                 or response.css('.f-g-foto img::attr(src)').get()
                 or response.css('img::attr(src)').get()
                 or ''
             )
             image_url = urljoin(response.url, image_src) if image_src else ''
+
+            price = None
+            offers_span = response.css('span[itemprop="offers"]')
+            if offers_span:
+                price = offers_span.css('meta[itemprop="price"]::attr(content)').get()
+                if not price:
+                    price_text = offers_span.css('::text').get()
+                    if price_text and 'тенге' in price_text:
+                        price = price_text.strip()
+            
+            if not price:
+                price = response.css('meta[itemprop="price"]::attr(content)').get()
+            
+            if price:
+                price = price.strip()
+            
+            description = response.css('meta[itemprop="description"]::attr(content)').get()
+            if not description:
+                about_div = response.css('.c-c-about')
+                if about_div:
+                    description_parts = about_div.css('::text').getall()
+                    if description_parts:
+                        description = " ".join([d.strip() for d in description_parts if d.strip()])
+                        description = description.strip() if description else None
+            
+            if not description:
+                description = None
+
+            logger.info(f"Parsing product: name='{name}', price='{price}', description_length={len(description) if description else 0}")
 
             class P: pass
             p = P()
@@ -132,11 +163,13 @@ class ParserService:
             p.supplier_id = supplier_id
             p.is_new = True
             p.image_url = image_url
+            p.price = price if price else None
+            p.description = description
 
             self.dao.save_product(p)
-            logger.info(f"Saved product: {name} for supplier {supplier_name}")
+            logger.info(f"Saved product: {name} (price: {price}) for supplier {supplier_name}")
         except Exception as e:
-            logger.exception("Failed to parse product")
+            logger.exception(f"Failed to parse product. URL: {getattr(response, 'url', 'unknown')}")
             raise
 
     def parse_product_from_listing(self, name: str, supplier_name: str, image_url: str = None) -> None:
