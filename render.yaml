@@ -9,10 +9,10 @@ services:
     startCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        value: ${postgresql://neondb_owner:npg_3Fbhdtps9oNJ@ep-delicate-lake-ady7nsxm-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=requireв} 
+        value: postgresql://neondb_owner:npg_3Fbhdtps9oNJ@ep-delicate-lake-ady7nsxm-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
       - key: PORT
         value: "10000"
-  - type: worker
+  - type: cron
     name: optovka-parser
     env: python
     region: oregon
@@ -26,7 +26,7 @@ services:
     schedule: 0 2 * * *
     envVars:
       - key: DATABASE_URL
-        value: ${postgresql://neondb_owner:npg_3Fbhdtps9oNJ@ep-delicate-lake-ady7nsxm-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
+        value: postgresql://neondb_owner:npg_3Fbhdtps9oNJ@ep-delicate-lake-ady7nsxm-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
       - key: SELENIUM_DRIVER_EXECUTABLE_PATH
         value: /usr/bin/chromedriver
       - key: SELENIUM_HEADLESS
