@@ -18,6 +18,7 @@ class UserPayload(BaseModel):
     role:str
 
 class Category(BaseModel):
+    id: int
     name: str
     slug: str
 
@@ -26,6 +27,7 @@ class CategoryCreate(BaseModel):
     slug: str
 
 class Subcategory(BaseModel):
+    id: int
     name:str
     slug:str
     category_id:int
