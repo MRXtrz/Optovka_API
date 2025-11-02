@@ -6,6 +6,7 @@ from typing import Optional,Dict
 class Category(BaseModel):
     name: str
     slug: str
+    id: Optional[int] = None 
     
 # class SubCategory(BaseModel):
 #     name:str
